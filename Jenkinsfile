@@ -4,36 +4,45 @@ pipeline {
   stages {
     stage('Build') {
       steps {
-        sh 'docker build -t my-flask .'
-        sh 'docker tag my-flask $DOCKER_BFLASK_IMAGE'
-      }
-    }
-    stage('Test') {
-      steps {
-        sh 'docker run my-flask python -m pytest app/tests/'
-      }
-    }
-    stage('Deploy') {
-      steps {
-        withCredentials([usernamePassword(credentialsId: "${DOCKER_REGISTRY_CREDS}", passwordVariable: 'DOCKER_PASSWORD', usernameVariable: 'DOCKER_USERNAME')]) {
-          sh "echo \$DOCKER_PASSWORD | docker login -u \$DOCKER_USERNAME --password-stdin docker.io"
-          sh 'docker push $DOCKER_BFLASK_IMAGE'
+        script {
+          // Test Case 1: Automated Testing in CI
+          sh 'docker build -t my-flask .'
+          sh 'docker tag my-flask $DOCKER_BFLASK_IMAGE'
+          sh 'docker run my-flask python -m pytest app/tests/'
         }
       }
     }
     
+    stage('Nightly Build') {
+      // Test Case 2: Scheduled Builds
+      triggers {
+        cron('H 0 * * *') // Schedule nightly build at midnight
+      }
+      steps {
+        script {
+          sh 'docker build -t my-flask .'
+          sh 'docker tag my-flask $DOCKER_BFLASK_IMAGE'
+        }
+      }
+    }
+    
+    stage('Deploy') {
+      steps {
+        script {
+          // Test Case 3: Rollback Mechanism in CD
+          catchError(buildResult: 'SUCCESS', stageResult: 'FAILURE') {
+            // Deploy faulty version intentionally
+            sh 'docker push $FAULTY_DOCKER_BFLASK_IMAGE'
+          }
+          // Trigger rollback if deployment fails
+          catchError(buildResult: 'FAILURE') {
+            input 'Rollback to the previous version?'
+            sh 'docker pull $DOCKER_BFLASK_IMAGE'
+            sh 'docker tag $DOCKER_BFLASK_IMAGE $FAULTY_DOCKER_BFLASK_IMAGE'
+            sh 'docker push $FAULTY_DOCKER_BFLASK_IMAGE'
+          }
+        }
+      }
+    }
   }
-
 }
-
-             
-              
-  
-
-                 
-    
-  
-    
-
-  
-
