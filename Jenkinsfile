@@ -8,10 +8,13 @@ pipeline {
           // Test Case 1: Automated Testing in CI
           sh 'docker build -t my-flask .'
           sh 'docker tag my-flask $DOCKER_BFLASK_IMAGE'
-          sh 'docker run my-flask python -m pytest app/tests/'
+      
+          // Run tests and fail the pipeline if any tests fail
+          sh 'docker run my-flask python -m pytest app/tests/' || error("Unit tests failed.")
         }
       }
     }
+
     
     stage('Nightly Build') {
       // Test Case 2: Scheduled Builds
